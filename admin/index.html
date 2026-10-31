@@ -97,7 +97,7 @@ tr:nth-child(2){animation-delay:.05s}tr:nth-child(3){animation-delay:.1s}tr:nth-
 <div style="display:flex;gap:12px;margin-top:20px"><button class="btn" style="flex:1" onclick="doAuth(false)">Login</button><button class="btn o" onclick="doAuth(true)">Register</button></div>
 <div class="err" id="aerr"></div></div></div></div>
 <div id="app" style="display:none">
-<header><span class="logo">AAVIRA</span><span class="pills"><button class="tb on" id="tabD" onclick="tab('d')">Dashboard</button><button class="tb" id="tabP" onclick="tab('p')">Products</button><button class="tb" id="tabF" onclick="tab('f')">Offers</button><button class="tb" id="tabG" onclick="tab('g')">Pages</button><button class="tb" id="tabU" onclick="tab('u')">Customers</button><button class="tb" id="tabO" onclick="tab('o')">Orders</button></span><span class="sp"></span><span id="who" style="color:var(--mute);font-size:12px"></span><button class="btn s o" onclick="auth.signOut()">Logout</button></header>
+<header><span class="logo">AAVIRA</span><span class="pills"><button class="tb on" id="tabD" onclick="tab('d')">Dashboard</button><button class="tb" id="tabP" onclick="tab('p')">Products</button><button class="tb" id="tabF" onclick="tab('f')">Offers</button><button class="tb" id="tabG" onclick="tab('g')">Pages</button><button class="tb" id="tabU" onclick="tab('u')">Customers</button><button class="tb" id="tabR" onclick="tab('r')">Reviews</button><button class="tb" id="tabO" onclick="tab('o')">Orders</button></span><span class="sp"></span><span id="who" style="color:var(--mute);font-size:12px"></span><button class="btn s o" onclick="auth.signOut()">Logout</button></header>
 <main id="view"></main></div>
 <div class="mod" id="mod"><div class="card" id="modc"></div></div><div id="toast"></div>
 <script>
@@ -125,9 +125,9 @@ try{let d=await db.collection("users").doc(u.uid).get();
 if(!d.exists){await db.collection("users").doc(u.uid).set({email:u.email,role:"customer",createdAt:TS()});d=await db.collection("users").doc(u.uid).get()}
 me=Object.assign({uid:u.uid,email:u.email},d.data());
 if(me.role!=="admin"&&me.role!=="seller"){await auth.signOut();$("aerr").textContent="Access nahi hai. Firebase Console → Firestore → users → "+u.uid+" mein role 'admin' (ya 'seller') kar do.";return}
-$("auth").style.display="none";$("app").style.display="block";$("who").textContent=me.email+" ("+me.role+")";$("tabO").style.display=$("tabD").style.display=$("tabF").style.display=$("tabG").style.display=$("tabU").style.display=me.role==="admin"?"":"none";tab(me.role==="admin"?"d":"p")
+$("auth").style.display="none";$("app").style.display="block";$("who").textContent=me.email+" ("+me.role+")";$("tabO").style.display=$("tabD").style.display=$("tabF").style.display=$("tabG").style.display=$("tabU").style.display=$("tabR").style.display=me.role==="admin"?"":"none";tab(me.role==="admin"?"d":"p")
 }catch(x){await auth.signOut();$("aerr").textContent="Error: "+x.message}});
-function tab(t){["D","P","O","F","G","U"].forEach(k=>$("tab"+k).classList.toggle("on",k.toLowerCase()===t));t==="p"?loadProducts():t==="o"?loadOrders():t==="f"?loadOffers():t==="g"?loadPages():t==="u"?loadCust():loadDash()}
+function tab(t){["D","P","O","F","G","U","R"].forEach(k=>$("tab"+k).classList.toggle("on",k.toLowerCase()===t));t==="p"?loadProducts():t==="o"?loadOrders():t==="f"?loadOffers():t==="g"?loadPages():t==="u"?loadCust():t==="r"?loadRev():loadDash()}
 async function loadProducts(){$("view").innerHTML=LD;
 try{let q=db.collection("products");if(me.role==="seller")q=q.where("sellerId","==",me.uid);
 const s=await q.get();prods=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0));renderProducts()}
@@ -245,4 +245,11 @@ os.docs.forEach(d=>{const o=d.data();if(DEAD.includes(o.status))return;const e=m
 const l=us.docs.map(d=>Object.assign({id:d.id},d.data())).filter(u=>u.role==="customer").map(u=>Object.assign(u,m[u.id]||{n:0,t:0})).sort((a,b)=>b.t-a.t);
 $("view").innerHTML='<h2>Customers ('+l.length+')</h2>'+(l.length?'<div class="wrap"><table><tr><th>Customer</th><th>Orders</th><th>Spent</th></tr>'+l.map(u=>'<tr><td><b>'+esc(u.name||"—")+'</b><br><small>'+esc(u.email)+'</small></td><td>'+u.n+'</td><td>'+inr(u.t)+'</td></tr>').join("")+'</table></div>':'<div class="card">Abhi koi customer nahi.</div>')}
 catch(x){$("view").innerHTML='<div class="err">'+esc(x.message)+'</div>'}}
+let RL=[];
+async function loadRev(){$("view").innerHTML=LD;
+try{const s=await db.collection("reviews").orderBy("createdAt","desc").limit(100).get();RL=s.docs.map(d=>Object.assign({id:d.id},d.data()));
+$("view").innerHTML='<h2>Reviews ('+RL.length+')</h2>'+(RL.length?'<div class="wrap"><table><tr><th>Product</th><th>Review</th><th>Status</th><th></th></tr>'+RL.map((r,i)=>'<tr><td><b>'+esc(r.productName||r.productId)+'</b></td><td><span style="color:#b8862b">'+"★".repeat(r.rating)+'</span> '+esc(r.userName)+(r.verified?' ✔ verified':'')+'<br><small>'+esc(r.comment)+'</small></td><td><span class="bd '+(r.status==="approved"?"active":"pending")+'">'+esc(r.status)+'</span></td><td style="white-space:nowrap"><button class="btn s o" onclick="rvT('+i+')">'+(r.status==="approved"?"Hide":"Show")+'</button> <button class="btn s r" onclick="rvD(\''+r.id+'\')">Del</button></td></tr>').join("")+'</table></div>':'<div class="card">Abhi koi review nahi.</div>')}
+catch(x){$("view").innerHTML='<div class="err">'+esc(x.message)+'</div>'}}
+async function rvT(i){const r=RL[i];try{await db.collection("reviews").doc(r.id).update({status:r.status==="approved"?"hidden":"approved"});loadRev()}catch(e){toast(e.message,1)}}
+async function rvD(id){if(!confirm("Review delete karna hai?"))return;try{await db.collection("reviews").doc(id).delete();toast("Deleted");loadRev()}catch(e){toast(e.message,1)}}
 </script></body></html>
