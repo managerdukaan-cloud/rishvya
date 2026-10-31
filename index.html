@@ -116,7 +116,8 @@ function authSh(reg){show('<div class="row"><h2 style="margin:0;flex:1;font:600 
 async function doAuth(reg){const e=$("ae").value.trim(),p=$("ap").value,b=$("ag");$("ar").textContent="";b.classList.add("busy");
 try{if(reg){const n=$("an").value.trim();const c=await auth.createUserWithEmailAndPassword(e,p);await db.collection("users").doc(c.user.uid).set({email:e,name:n,role:"customer",createdAt:TS()})}else await auth.signInWithEmailAndPassword(e,p);hide();toast("Welcome!");if(after){const f=after;after=null;f()}}catch(x){$("ar").textContent=x.message;b.classList.remove("busy")}}
 async function rst(){const e=$("ae").value.trim();if(!e)return $("ar").textContent="Pehle email likho";try{await auth.sendPasswordResetEmail(e);toast("Reset link email par bhej diya")}catch(x){$("ar").textContent=x.message}}
-auth.onAuthStateChanged(u=>{user=u;$("ab").textContent=u?(u.email[0]||"U").toUpperCase():"👤"});
+auth.onAuthStateChanged(async u=>{user=u;$("ab").textContent=u?(u.email[0]||"U").toUpperCase():"👤";
+if(u){try{const r=db.collection("users").doc(u.uid),d=await r.get();if(!d.exists)await r.set({email:u.email,role:"customer",createdAt:TS()})}catch(e){}}});
 function checkout(){if(!cart.length)return;if(!user){after=checkout;return authSh()}const m=sums();
 show('<div class="row"><h2 style="margin:0;flex:1;font:600 26px Georgia,serif">Checkout</h2><button class="ib" onclick="hide()">✕</button></div><label>Full name</label><input id="cn"><div class="g2"><div><label>Mobile (10 digit)</label><input id="cp" type="tel" maxlength="10"></div><div><label>Pincode</label><input id="cz" maxlength="6" inputmode="numeric"></div></div><label>Address</label><textarea id="ca" rows="2"></textarea><label>City / State</label><input id="cy">'+
 '<label>Payment</label><div class="pm"><label><input type="radio" name="pm" value="cod" checked onchange="pmv()">Cash on Delivery</label><label><input type="radio" name="pm" value="upi" onchange="pmv()">UPI</label></div>'+
