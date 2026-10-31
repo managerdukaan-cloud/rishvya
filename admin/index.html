@@ -78,6 +78,10 @@ tr:nth-child(2){animation-delay:.05s}tr:nth-child(3){animation-delay:.1s}tr:nth-
 .sc{position:absolute;width:10px;height:10px;background:var(--gold);transform:rotate(45deg);animation:sparkle 2.6s ease-in-out infinite}
 @media(max-width:700px){.lw{grid-template-columns:1fr;gap:18px}.hero{text-align:center}.hero h1{justify-content:center;font-size:36px}.g2,.g3{grid-template-columns:1fr}.hero svg{width:64px;height:64px}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.stat{text-align:center;padding:16px 8px}.stat b{font-size:30px;display:block;color:var(--wine);font-family:Georgia,serif}.stat small{color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:18px}.bars{display:flex;gap:10px;align-items:flex-end;height:150px;padding-top:10px}
+.bars>div{flex:1;text-align:center;font-size:11px;color:var(--mute);display:flex;flex-direction:column;justify-content:flex-end;height:100%}.bars i{display:block;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,var(--gold),var(--wine));transform-origin:bottom;animation:grow .9s var(--sp) both;min-height:4px}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -93,7 +97,7 @@ tr:nth-child(2){animation-delay:.05s}tr:nth-child(3){animation-delay:.1s}tr:nth-
 <div style="display:flex;gap:12px;margin-top:20px"><button class="btn" style="flex:1" onclick="doAuth(false)">Login</button><button class="btn o" onclick="doAuth(true)">Register</button></div>
 <div class="err" id="aerr"></div></div></div></div>
 <div id="app" style="display:none">
-<header><span class="logo">AAVIRA</span><span class="pills"><button class="tb on" id="tabP" onclick="tab('p')">Products</button><button class="tb" id="tabO" onclick="tab('o')">Orders</button></span><span class="sp"></span><span id="who" style="color:var(--mute);font-size:12px"></span><button class="btn s o" onclick="auth.signOut()">Logout</button></header>
+<header><span class="logo">AAVIRA</span><span class="pills"><button class="tb on" id="tabD" onclick="tab('d')">Dashboard</button><button class="tb" id="tabP" onclick="tab('p')">Products</button><button class="tb" id="tabO" onclick="tab('o')">Orders</button></span><span class="sp"></span><span id="who" style="color:var(--mute);font-size:12px"></span><button class="btn s o" onclick="auth.signOut()">Logout</button></header>
 <main id="view"></main></div>
 <div class="mod" id="mod"><div class="card" id="modc"></div></div><div id="toast"></div>
 <script>
@@ -121,9 +125,9 @@ try{let d=await db.collection("users").doc(u.uid).get();
 if(!d.exists){await db.collection("users").doc(u.uid).set({email:u.email,role:"customer",createdAt:TS()});d=await db.collection("users").doc(u.uid).get()}
 me=Object.assign({uid:u.uid,email:u.email},d.data());
 if(me.role!=="admin"&&me.role!=="seller"){await auth.signOut();$("aerr").textContent="Access nahi hai. Firebase Console → Firestore → users → "+u.uid+" mein role 'admin' (ya 'seller') kar do.";return}
-$("auth").style.display="none";$("app").style.display="block";$("who").textContent=me.email+" ("+me.role+")";$("tabO").style.display=me.role==="admin"?"":"none";tab("p")
+$("auth").style.display="none";$("app").style.display="block";$("who").textContent=me.email+" ("+me.role+")";$("tabO").style.display=$("tabD").style.display=me.role==="admin"?"":"none";tab(me.role==="admin"?"d":"p")
 }catch(x){await auth.signOut();$("aerr").textContent="Error: "+x.message}});
-function tab(t){$("tabP").classList.toggle("on",t==="p");$("tabO").classList.toggle("on",t==="o");t==="p"?loadProducts():loadOrders()}
+function tab(t){["D","P","O"].forEach(k=>$("tab"+k).classList.toggle("on",k.toLowerCase()===t));t==="p"?loadProducts():t==="o"?loadOrders():loadDash()}
 async function loadProducts(){$("view").innerHTML=LD;
 try{let q=db.collection("products");if(me.role==="seller")q=q.where("sellerId","==",me.uid);
 const s=await q.get();prods=s.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0));renderProducts()}
@@ -174,10 +178,36 @@ try{if(editId)await db.collection("products").doc(editId).update(d);else{d.creat
 closeM();toast("Product saved");loadProducts()}catch(x){$("sv").disabled=false;$("sv").classList.remove("busy");toast(x.message,1)}}
 async function delProd(id){if(!confirm("Product delete karna hai? (Cloudinary mein images rahengi)"))return;
 try{await db.collection("products").doc(id).delete();toast("Deleted");loadProducts()}catch(x){toast(x.message,1)}}
-async function loadOrders(){$("view").innerHTML=LD;
-try{const s=await db.collection("orders").orderBy("createdAt","desc").limit(50).get();
-$("view").innerHTML='<h2>Orders</h2>'+(s.empty?'<div class="card">Abhi koi order nahi hai.</div>':'<div class="wrap"><table><tr><th>Order</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th></th></tr>'+s.docs.map(d=>{const o=d.data();
-return '<tr><td>'+esc(o.orderId||d.id)+'</td><td>'+esc(o.customerName)+'<br><small>'+esc(o.customerPhone||"")+'</small></td><td>'+inr(o.total)+'</td><td>'+esc(o.paymentMethod||"")+(o.utrNumber?'<br><small>UTR: '+esc(o.utrNumber)+'</small>':'')+'</td><td><select id="s_'+d.id+'">'+ST.map(x=>'<option'+(o.status===x?" selected":"")+'>'+x+'</option>').join("")+'</select></td><td><button class="btn s" onclick="setSt(\''+d.id+'\')">Update</button></td></tr>'}).join("")+'</table></div>')}
+const WORK=["payment_confirmed","processing","packed","shipped","out_for_delivery","delivered"],DEAD=["cancelled","returned","refunded"];let OR=[];
+function cu(){document.querySelectorAll(".cu").forEach(e=>{const v=+e.dataset.v,m=e.dataset.m==="1",t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/900),n=Math.round(v*(1-Math.pow(1-k,3)));e.textContent=m?inr(n):n;if(k<1)requestAnimationFrame(f)})(t0)})}
+async function loadDash(){$("view").innerHTML=LD;
+try{const[os,ps]=await Promise.all([db.collection("orders").orderBy("createdAt","desc").limit(500).get(),db.collection("products").get()]);
+const O=os.docs.map(d=>d.data()),Pp=ps.docs.map(d=>Object.assign({id:d.id},d.data())),conf=O.filter(o=>WORK.includes(o.status)),rev=conf.reduce((a,o)=>a+(o.total||0),0),pend=O.filter(o=>["placed","pending_payment"].includes(o.status)).length,low=Pp.filter(p=>(p.stock||0)<=2),
+days=[];for(let k=6;k>=0;k--){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-k);days.push({d,l:d.toLocaleDateString("en-IN",{weekday:"short"}),v:0})}
+conf.forEach(o=>{const c=o.createdAt&&o.createdAt.toDate?o.createdAt.toDate():null;if(!c)return;c.setHours(0,0,0,0);const x=days.find(y=>y.d.getTime()===c.getTime());if(x)x.v+=o.total||0});const mx=Math.max(1,...days.map(x=>x.v));
+const st=(l,v,m)=>'<div class="card stat"><b class="cu" data-v="'+v+'" data-m="'+(m?1:0)+'">0</b><small>'+l+'</small></div>';
+$("view").innerHTML='<h2>Dashboard</h2><div class="sg">'+st("Revenue (confirmed)",rev,1)+st("Total orders",O.length)+st("Pending orders",pend)+st("Delivered",O.filter(o=>o.status==="delivered").length)+st("Active products",Pp.filter(p=>p.status==="active").length)+st("Low stock",low.length)+'</div>'+
+'<div class="card"><b>Last 7 days revenue</b><div class="bars">'+days.map((x,i)=>'<div title="'+inr(x.v)+'"><i style="height:'+Math.max(3,Math.round(x.v/mx*100))+'%;animation-delay:'+i*.08+'s"></i>'+x.l+'</div>').join("")+'</div></div>'+
+'<div class="card" style="margin-top:18px"><b>Low stock (2 ya kam)</b>'+(low.length?low.map(p=>'<div style="padding:6px 0">'+esc(p.name)+' — <b style="color:#b3261e">'+(p.stock||0)+' left</b></div>').join(""):'<p style="color:var(--mute)">Sab products ka stock theek hai.</p>')+'</div>';cu()}
 catch(x){$("view").innerHTML='<div class="err">'+esc(x.message)+'</div>'}}
-async function setSt(id){try{await db.collection("orders").doc(id).update({status:$("s_"+id).value,updatedAt:TS()});toast("Status updated")}catch(x){toast(x.message,1)}}
+async function loadOrders(){$("view").innerHTML=LD;
+try{const s=await db.collection("orders").orderBy("createdAt","desc").limit(100).get();OR=s.docs.map(d=>Object.assign({id:d.id},d.data()));
+$("view").innerHTML='<h2>Orders</h2>'+(OR.length?'<div class="wrap"><table><tr><th>Order</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th></th></tr>'+OR.map((o,i)=>'<tr><td>'+esc(o.orderId||o.id)+'</td><td>'+esc(o.customerName)+'<br><small>'+esc(o.customerPhone||"")+'</small></td><td>'+inr(o.total)+'</td><td>'+esc((o.paymentMethod||"").toUpperCase())+(o.utrNumber?'<br><small>UTR '+esc(o.utrNumber)+'</small>':'')+'</td><td><span class="bd">'+esc(o.status)+'</span></td><td><button class="btn s" onclick="ordD('+i+')">Details</button></td></tr>').join("")+'</table></div>':'<div class="card">Abhi koi order nahi hai.</div>')}
+catch(x){$("view").innerHTML='<div class="err">'+esc(x.message)+'</div>'}}
+function ordD(i){const o=OR[i],a=o.address||{};
+$("modc").innerHTML='<div style="display:flex"><h2 style="margin:0;flex:1">'+esc(o.orderId||o.id)+'</h2><button class="btn s o" onclick="closeM()">✕</button></div><p><b>'+esc(a.name||o.customerName)+'</b> · '+esc(a.phone||o.customerPhone)+'<br>'+esc(a.address)+', '+esc(a.city)+' – '+esc(a.pincode)+'</p>'+
+(o.items||[]).map(x=>'<div style="display:flex;gap:10px;align-items:center;margin:8px 0"><img class="th" src="'+esc(th(x.image))+'" alt=""><div style="flex:1"><b>'+esc(x.name)+'</b><br><small>'+esc(x.color)+' '+esc(x.size)+' × '+x.qty+'</small></div><b>'+inr(x.price*x.qty)+'</b></div>').join("")+
+'<p>Subtotal '+inr(o.subtotal)+' · Delivery '+inr(o.shipping)+' · <b>Total '+inr(o.total)+'</b><br>Payment: '+esc((o.paymentMethod||"").toUpperCase())+(o.utrNumber?' · UTR <b>'+esc(o.utrNumber)+'</b>':'')+'<br>Stock: <b>'+(o.stockDeducted?(o.stockRestored?"wapas add hua":"kam ho chuka"):"abhi kam nahi hua")+'</b></p>'+
+'<div class="g3"><div><label>Status</label><select id="os">'+ST.map(x=>'<option'+(o.status===x?" selected":"")+'>'+x+'</option>').join("")+'</select></div><div><label>Courier</label><input id="oc" value="'+esc(o.courier||"")+'"></div><div><label>Tracking no.</label><input id="ot" value="'+esc(o.trackingNo||"")+'"></div></div><p style="color:var(--mute);font-size:12px">Status payment_confirmed / processing / packed… karne par stock apne aap kam hoga. Cancel/return par wapas add hoga.</p>'+
+'<div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="osv" onclick="saveOrd('+i+')">Save</button><button class="btn o" onclick="closeM()">Close</button></div>';$("mod").classList.add("on")}
+function stockAdj(id,dir){return db.runTransaction(async t=>{const oref=db.collection("orders").doc(id),o=(await t.get(oref)).data();
+if(dir<0&&o.stockDeducted)return;if(dir>0&&(!o.stockDeducted||o.stockRestored))return;
+const pd={};for(const pid of new Set((o.items||[]).map(x=>x.id))){const sn=await t.get(db.collection("products").doc(pid));if(sn.exists)pd[pid]=sn.data().variants||[]}
+for(const x of o.items||[]){const v=pd[x.id];if(!v)continue;const r=v.find(y=>y.size===x.size&&(y.color||"")===(x.color||""));if(!r)continue;if(dir<0&&(+r.stock||0)<x.qty)throw new Error("Stock kam hai: "+x.name+" ("+x.size+" "+x.color+")");r.stock=(+r.stock||0)+dir*x.qty}
+for(const pid in pd)t.update(db.collection("products").doc(pid),{variants:pd[pid],stock:pd[pid].reduce((a,y)=>a+(+y.stock||0),0),updatedAt:TS()});
+t.update(oref,dir<0?{stockDeducted:true}:{stockRestored:true})})}
+async function saveOrd(i){const o=OR[i],st=$("os").value,b=$("osv");b.disabled=true;b.classList.add("busy");
+try{if(WORK.includes(st)&&!o.stockDeducted)await stockAdj(o.id,-1);if(DEAD.includes(st)&&o.stockDeducted&&!o.stockRestored)await stockAdj(o.id,1);
+await db.collection("orders").doc(o.id).update({status:st,courier:$("oc").value.trim(),trackingNo:$("ot").value.trim(),updatedAt:TS()});toast("Order updated");closeM();loadOrders()}
+catch(x){b.disabled=false;b.classList.remove("busy");toast(x.message,1)}}
 </script></body></html>
