@@ -33,7 +33,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: aavira-release
+  group: rishvya-release
   cancel-in-progress: false
 
 jobs:
@@ -49,7 +49,7 @@ jobs:
     if: ${{ !cancelled() && needs.android.result != 'failure' }}
     runs-on: ubuntu-latest
     env:
-      SITE_URL: https://managerdukaan-cloud.github.io/aavira
+      SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
       VERSION: ${{ inputs.version }}
       NOTES: ${{ inputs.notes }}
       BUILD_APK: ${{ inputs.build_apk }}
@@ -69,7 +69,7 @@ jobs:
           touch _site/.nojekyll
           sed -i -E "s/const APP_VER=\"[^\"]*\"/const APP_VER=\"$VERSION\"/" _site/index.html
           grep -q "const APP_VER=\"$VERSION\"" _site/index.html
-          if [ -f _site/sw.js ]; then sed -i "s/aavira-shell-v1/aavira-shell-$VERSION/" _site/sw.js; fi
+          if [ -f _site/sw.js ]; then sed -i "s/rishvya-shell-v1/rishvya-shell-$VERSION/" _site/sw.js; fi
 
       - name: Write version.json
         run: |
@@ -81,7 +81,7 @@ jobs:
             if [ "$FORCE" = "true" ]; then MIN_APK="$VERSION"; fi
           fi
           jq -n --arg web "$VERSION" --arg la "$LATEST_APK" --arg ma "$MIN_APK" --arg notes "$NOTES" \
-            --arg apk "https://github.com/${{ github.repository }}/releases/latest/download/aavira.apk" \
+            --arg apk "https://github.com/${{ github.repository }}/releases/latest/download/rishvya.apk" \
             --arg date "$(date -u +%FT%TZ)" \
             '{web:$web, latestApk:$la, minApk:$ma, apkUrl:$apk, notes:$notes, date:$date}' > _site/version.json
           cat _site/version.json
