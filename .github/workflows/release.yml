@@ -1,0 +1,120 @@
+name: One-click Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version (e.g. 1.0.1)"
+        required: true
+      notes:
+        description: "What's new (customers will see this)"
+        required: false
+        default: "Bug fixes and improvements"
+      deploy_web:
+        description: "Deploy website + admin panel"
+        type: boolean
+        default: true
+      deploy_firebase:
+        description: "Deploy Firestore rules + indexes"
+        type: boolean
+        default: true
+      build_apk:
+        description: "Build and publish a new Android APK"
+        type: boolean
+        default: false
+      force_update:
+        description: "Force old APK users to update (needs build_apk)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: aavira-release
+  cancel-in-progress: false
+
+jobs:
+  android:
+    if: ${{ inputs.build_apk }}
+    uses: ./.github/workflows/android.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+
+  site:
+    needs: [android]
+    if: ${{ !cancelled() && needs.android.result != 'failure' }}
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://managerdukaan-cloud.github.io/aavira
+      VERSION: ${{ inputs.version }}
+      NOTES: ${{ inputs.notes }}
+      BUILD_APK: ${{ inputs.build_apk }}
+      FORCE: ${{ inputs.force_update }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Version must look like 1.0.1"; exit 1; }
+          grep -q 'const APP_VER="' index.html || { echo "::error::APP_VER line missing in index.html"; exit 1; }
+
+      - name: Build site folder
+        run: |
+          mkdir _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' --exclude='node_modules' --exclude='firebase.json' --exclude='.firebaserc' --exclude='firestore.*' --exclude='*.md' ./ _site/
+          touch _site/.nojekyll
+          sed -i -E "s/const APP_VER=\"[^\"]*\"/const APP_VER=\"$VERSION\"/" _site/index.html
+          grep -q "const APP_VER=\"$VERSION\"" _site/index.html
+          if [ -f _site/sw.js ]; then sed -i "s/aavira-shell-v1/aavira-shell-$VERSION/" _site/sw.js; fi
+
+      - name: Write version.json
+        run: |
+          PREV=$(curl -fsS "$SITE_URL/version.json?t=$(date +%s)" 2>/dev/null || echo '{}')
+          LATEST_APK=$(echo "$PREV" | jq -r '.latestApk // ""' 2>/dev/null || echo "")
+          MIN_APK=$(echo "$PREV" | jq -r '.minApk // ""' 2>/dev/null || echo "")
+          if [ "$BUILD_APK" = "true" ]; then
+            LATEST_APK="$VERSION"
+            if [ "$FORCE" = "true" ]; then MIN_APK="$VERSION"; fi
+          fi
+          jq -n --arg web "$VERSION" --arg la "$LATEST_APK" --arg ma "$MIN_APK" --arg notes "$NOTES" \
+            --arg apk "https://github.com/${{ github.repository }}/releases/latest/download/aavira.apk" \
+            --arg date "$(date -u +%FT%TZ)" \
+            '{web:$web, latestApk:$la, minApk:$ma, apkUrl:$apk, notes:$notes, date:$date}' > _site/version.json
+          cat _site/version.json
+
+      - name: Deploy Firebase (Firestore rules + indexes)
+        if: ${{ inputs.deploy_firebase }}
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          [ -n "$SA_JSON" ] || { echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing. See RELEASE_SETUP.md step 4"; exit 1; }
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npm i -g firebase-tools
+          firebase deploy --only firestore --project aavira-baa36 --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
+
+      - name: Setup Pages
+        if: ${{ inputs.deploy_web }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        if: ${{ inputs.deploy_web }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  pages:
+    needs: [site]
+    if: ${{ !cancelled() && needs.site.result == 'success' && inputs.deploy_web }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
