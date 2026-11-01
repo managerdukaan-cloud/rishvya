@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>AAVIRA – Wear Your Elegance</title><meta name="description" content="AAVIRA: premium Indian jewellery, ethnic wear and accessories. Antique sets, kundan, sarees. COD and UPI."><meta name="theme-color" content="#581D32"><meta property="og:title" content="AAVIRA – Wear Your Elegance"><meta property="og:description" content="Premium Indian jewellery, ethnic wear and accessories."><meta property="og:type" content="website">
+<title>AAVIRA – Wear Your Elegance</title><meta name="description" content="AAVIRA: premium Indian jewellery, ethnic wear and accessories. Antique sets, kundan, sarees. COD and UPI."><meta name="theme-color" content="#581D32"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icons/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="AAVIRA"><meta property="og:title" content="AAVIRA – Wear Your Elegance"><meta property="og:description" content="Premium Indian jewellery, ethnic wear and accessories."><meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💎%3C/text%3E%3C/svg%3E">
 <style>
 :root{--bg:#EEE8DD;--hi:#fff;--lo:#d3c9b8;--gold:#C6A46A;--wine:#581D32;--ink:#242424;--mute:#7a7064;--sp:cubic-bezier(.34,1.56,.64,1);--ez:cubic-bezier(.22,1,.36,1)}
@@ -62,7 +62,7 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:20px}
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head><body>
 <div id="boot"><div style="text-align:center"><div class="logo" style="font-size:32px">AAVIRA</div><div class="bl"><i></i></div></div></div>
-<header><span class="logo">AAVIRA</span><span class="sp"></span><button class="ib" title="Wishlist" onclick="setCat('♡')">♡<span class="bg" id="wc">0</span></button><button class="ib" title="Account" onclick="acct()" id="ab">👤</button><button class="ib" title="Cart" onclick="cartSh()">🛍<span class="bg" id="cc">0</span></button></header>
+<header><span class="logo">AAVIRA</span><span class="sp"></span><button class="ib" id="ins" title="Install app" style="display:none">⬇</button><button class="ib" title="Wishlist" onclick="setCat('♡')">♡<span class="bg" id="wc">0</span></button><button class="ib" title="Account" onclick="acct()" id="ab">👤</button><button class="ib" title="Cart" onclick="cartSh()">🛍<span class="bg" id="cc">0</span></button></header>
 <main>
 <div class="bn" id="bn" style="display:none"></div>
 <section class="hero"><small>Wear Your Elegance</small><h1>Jewellery &amp; Ethnic Wear<br>for every celebration</h1><p>Antique sets, kundan, sarees and accessories – handpicked for you.</p><button class="btn" onclick="document.getElementById('grid').scrollIntoView({behavior:'smooth'})">Shop now</button>
@@ -70,7 +70,7 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:20px}
 <div class="chips" id="chips"></div>
 <div class="bar"><input id="q" placeholder="Search necklace, saree, kundan…" oninput="grid()"><select id="so" onchange="grid()"><option value="">Sort</option><option value="n">Newest</option><option value="pl">Price: low to high</option><option value="ph">Price: high to low</option><option value="d">Highest discount</option></select></div>
 <div class="grid" id="grid"><div class="ld"><i></i><i></i><i></i></div></div></main>
-<footer><div class="fl"><a onclick="page('about')">About AAVIRA</a><a onclick="page('contact')">Contact Us</a><a onclick="page('shipping')">Shipping Policy</a><a onclick="page('returns')">Return & Refund Policy</a><a onclick="page('privacy')">Privacy Policy</a><a onclick="page('terms')">Terms & Conditions</a><a onclick="page('faq')">FAQ</a></div>© AAVIRA · Wear Your Elegance · COD &amp; UPI available</footer>
+<footer><div class="fl"><a id="apkl" target="_blank" rel="noopener" style="display:none">📱 Get Android App</a><a onclick="page('about')">About AAVIRA</a><a onclick="page('contact')">Contact Us</a><a onclick="page('shipping')">Shipping Policy</a><a onclick="page('returns')">Return & Refund Policy</a><a onclick="page('privacy')">Privacy Policy</a><a onclick="page('terms')">Terms & Conditions</a><a onclick="page('faq')">FAQ</a></div>© AAVIRA · Wear Your Elegance · COD &amp; UPI available</footer>
 <div class="ov" id="ov"><div class="sh" id="sh"></div></div><div id="toast"></div>
 <script>
 const CFG={apiKey:"AIzaSyCTDkPOpXO4cCUY5Udas-NNIVVH6heuEgE",authDomain:"aavira-baa36.firebaseapp.com",projectId:"aavira-baa36",storageBucket:"aavira-baa36.firebasestorage.app",messagingSenderId:"507908663305",appId:"1:507908663305:web:14757a4485da5b42ce70d8"};
@@ -175,7 +175,7 @@ const id=cur.id+"_"+user.uid,r={productId:cur.id,productName:cur.name,userId:use
 await db.collection("reviews").doc(id).set(r);const l=RV[cur.id]=(RV[cur.id]||[]).filter(x=>x.userId!==user.uid);l.push(Object.assign({id},r,{createdAt:{seconds:Date.now()/1000}}));toast("Review save ho gaya");cset("av_R",RV);grid();pd()}catch(x){b.classList.remove("busy");e.textContent=x.message}}
 let unm=null,LOC=null;
 function beep(){try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.setValueAtTime(.15,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.4);o.start();o.stop(c.currentTime+.4)}catch(e){}}
-function ntf(t,b){toast(t+" – "+b);try{if("Notification" in window&&Notification.permission==="granted")new Notification(t,{body:b})}catch(e){}beep()}
+function ntf(t,b){toast(t+" – "+b);try{if("Notification" in window&&Notification.permission==="granted"){if(navigator.serviceWorker&&navigator.serviceWorker.controller)navigator.serviceWorker.ready.then(r=>r.showNotification(t,{body:b,icon:"icons/icon-192.png"}));else new Notification(t,{body:b})}}catch(e){}beep()}
 function watchMine(){if(unm)unm();let first=true;const seen={};
 unm=db.collection("orders").where("customerId","==",user.uid).onSnapshot(s=>{s.docChanges().forEach(c=>{const o=c.doc.data(),id=c.doc.id,p=seen[id];seen[id]={s:o.status,t:o.trackingNo||""};if(first||c.type!=="modified"||!p)return;
 if(o.trackingNo&&o.trackingNo!==p.t)ntf("Order "+o.orderId+" shipped","🚚 "+(o.courier||"Courier")+" · Tracking: "+o.trackingNo);else if(o.status!==p.s)ntf("Order "+o.orderId,STL[o.status]||o.status)});first=false},()=>{})}
@@ -210,5 +210,29 @@ function tt(){const m=sums();$("tt").innerHTML='<div class="tot"><span>Subtotal<
 async function applyC(){const c=$("cc2").value.trim().toUpperCase(),n=$("cm");n.textContent="";if(!c){coup=null;tt();return}
 try{const d=await db.collection("coupons").doc(c).get();if(!d.exists)throw new Error("Coupon galat hai");const k=d.data(),m=sums();if(!k.active)throw new Error("Coupon active nahi hai");if(k.expiry&&new Date(k.expiry+"T23:59:59")<new Date())throw new Error("Coupon expire ho gaya");if(m.s<(k.minOrder||0))throw new Error(inr(k.minOrder)+" ya usse upar ke order par chalega");
 coup=Object.assign({code:c},k);tt();n.style.color="#1c7a45";n.textContent="Coupon lag gaya!"}catch(x){coup=null;tt();n.style.color="#b3261e";n.textContent=x.message}}
+let dip=null;addEventListener("beforeinstallprompt",e=>{e.preventDefault();dip=e;$("ins").style.display=""});
+$("ins").onclick=async()=>{if(!dip)return;dip.prompt();try{await dip.userChoice}catch(e){}dip=null;$("ins").style.display="none"};
+if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+const APP_VER="0.0.0";
+(function(){try{const u=new URLSearchParams(location.search);if(u.get("shell"))localStorage.setItem("av_shell",JSON.stringify({t:u.get("shell"),v:u.get("sv")||"0.0.0"}))}catch(e){}})();
+function vc(a,b){a=String(a).split(".").map(Number);b=String(b).split(".").map(Number);for(let i=0;i<3;i++){const x=a[i]||0,y=b[i]||0;if(x!==y)return x<y?-1:1}return 0}
+async function doUpd(){try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister();for(const k of await caches.keys())await caches.delete(k)}catch(e){}try{["av_P","av_R","av_B"].forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()}
+function updUI(v,force,kind){if($("upd"))return;const d=document.createElement("div");d.id="upd";
+d.style.cssText=force?"position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;background:rgba(36,24,28,.72);backdrop-filter:blur(8px)":"position:fixed;left:12px;right:12px;bottom:14px;z-index:90;max-width:440px;margin:auto";
+d.innerHTML='<div style="background:var(--bg);border-radius:22px;padding:18px;box-shadow:8px 8px 20px var(--lo),-8px -8px 20px var(--hi);'+(force?'max-width:380px;text-align:center':'')+'"><b style="font-size:17px">'+(force?"⚠ Update required":"🔔 Update available")+'</b><div class="note" style="margin:6px 0 12px">'+(force?"Is app ka naya version aa gaya hai. Aage use karne ke liye update karna zaroori hai.":"Naya version available hai.")+(v.notes?'<br>'+esc(v.notes):'')+'</div><div class="row" style="'+(force?'justify-content:center':'')+'"><button class="btn s" id="updb">Update now</button>'+(force?'':'<button class="btn s o" id="updl">Later</button>')+'</div></div>';
+document.body.appendChild(d);$("updb").onclick=()=>{if(kind==="apk")window.open(v.playUrl||v.apkUrl,"_blank");else doUpd()};
+if(!force)$("updl").onclick=()=>{d.remove();try{sessionStorage.setItem("av_us","1")}catch(e){}}}
+async function chkVer(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=await r.json();let sh=null;try{sh=JSON.parse(localStorage.getItem("av_shell"))}catch(e){}
+const apk=sh&&sh.t==="apk",later=sessionStorage.getItem("av_us");
+if(!apk&&v.latestApk&&/android/i.test(navigator.userAgent)&&$("apkl")){$("apkl").href=v.playUrl||v.apkUrl;$("apkl").style.display="inline"}
+if(apk&&v.minApk&&vc(sh.v,v.minApk)<0)return updUI(v,true,"apk");
+if(later)return;
+if(apk&&v.latestApk&&vc(sh.v,v.latestApk)<0)return updUI(v,false,"apk");
+if(APP_VER!=="0.0.0"&&v.web&&vc(APP_VER,v.web)<0)updUI(v,false,"web")}catch(e){}}
+chkVer();setInterval(chkVer,9e5);document.addEventListener("visibilitychange",()=>{if(!document.hidden)chkVer()});
+(function(){const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),sa=navigator.standalone||matchMedia("(display-mode: standalone)").matches;if(!ios||sa||localStorage.getItem("av_ios"))return;
+setTimeout(()=>{const d=document.createElement("div");d.style.cssText="position:fixed;left:12px;right:12px;bottom:14px;z-index:85;max-width:440px;margin:auto;padding:14px;border-radius:18px;background:var(--bg);box-shadow:8px 8px 20px var(--lo),-8px -8px 20px var(--hi)";
+d.innerHTML='<b>📲 iPhone par app jaisa install karo</b><div class="note" style="margin:4px 0 10px">Safari mein Share <b>⎙</b> dabao, phir <b>Add to Home Screen</b>.</div><button class="btn s o" id="iosx">Theek hai</button>';document.body.appendChild(d);$("iosx").onclick=()=>{d.remove();try{localStorage.setItem("av_ios","1")}catch(e){}}},5000)})();
 cnt();chips();load();loadBn();loadRv();
+
 </script></body></html>
