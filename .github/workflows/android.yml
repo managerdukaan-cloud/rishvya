@@ -17,9 +17,10 @@ permissions:
   contents: write
 
 env:
-  SITE_URL: https://managerdukaan-cloud.github.io/aavira/
-  APP_ID: com.aavira.store
-  APP_NAME: AAVIRA
+  SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+  HOST: ${{ github.repository_owner }}.github.io
+  APP_ID: com.rishvya.store
+  APP_NAME: RISHVYA
 
 jobs:
   build:
@@ -56,7 +57,7 @@ jobs:
           npm init -y > /dev/null
           npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
           mkdir www
-          echo '<!doctype html><title>AAVIRA</title><p>Loading...</p>' > www/index.html
+          echo '<!doctype html><title>RISHVYA</title><p>Loading...</p>' > www/index.html
           cat > capacitor.config.json <<EOF
           {
             "appId": "$APP_ID",
@@ -65,7 +66,7 @@ jobs:
             "server": {
               "url": "${SITE_URL}?shell=apk&sv=${VERSION}",
               "androidScheme": "https",
-              "allowNavigation": ["managerdukaan-cloud.github.io"]
+              "allowNavigation": ["${HOST}"]
             },
             "android": {
               "adjustMarginsForEdgeToEdge": "force"
@@ -83,7 +84,7 @@ jobs:
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n</manifest>#' app/src/main/AndroidManifest.xml
           sed -i 's/#FFFFFF/#581D32/' app/src/main/res/values/ic_launcher_background.xml || true
 
-      - name: AAVIRA app icon and splash screen
+      - name: RISHVYA app icon and splash screen
         run: |
           pip install pillow > /dev/null
           test -f icons/logo.png || { echo "::error::icons/logo.png missing in repo (upload it to the icons folder)"; exit 1; }
@@ -125,9 +126,16 @@ jobs:
               '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#581D32</color>\n</resources>\n')
 
           n = 0
+          sp = Image.open("icons/splash.png").convert("RGB") if os.path.exists("icons/splash.png") else None
           for f in glob.glob(f"{res}/drawable*/splash*.png"):
               w, h = Image.open(f).size
-              on_wine(w, h, 0.36).convert("RGB").save(f)
+              if sp is not None:
+                  k = max(w / sp.width, h / sp.height)
+                  r = sp.resize((int(sp.width * k) + 1, int(sp.height * k) + 1), Image.LANCZOS)
+                  x, y = (r.width - w) // 2, (r.height - h) // 2
+                  r.crop((x, y, x + w, y + h)).save(f)
+              else:
+                  on_wine(w, h, 0.36).convert("RGB").save(f)
               n += 1
           print("splash images replaced:", n)
           if n == 0:
@@ -147,22 +155,22 @@ jobs:
           OUT=shell/android/app/build/outputs
           APK=$(ls $OUT/apk/release/*.apk | head -1)
           "$BT/zipalign" -p -f 4 "$APK" aligned.apk
-          "$BT/apksigner" sign --ks release.jks --ks-key-alias "$KEY_ALIAS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out aavira.apk aligned.apk
-          "$BT/apksigner" verify --print-certs aavira.apk | head -3
-          cp $OUT/bundle/release/app-release.aab aavira.aab
-          jarsigner -keystore release.jks -storepass:env KS_PASS -keypass:env KEY_PASS -digestalg SHA-256 -sigalg SHA256withRSA aavira.aab "$KEY_ALIAS"
+          "$BT/apksigner" sign --ks release.jks --ks-key-alias "$KEY_ALIAS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS --out rishvya.apk aligned.apk
+          "$BT/apksigner" verify --print-certs rishvya.apk | head -3
+          cp $OUT/bundle/release/app-release.aab rishvya.aab
+          jarsigner -keystore release.jks -storepass:env KS_PASS -keypass:env KEY_PASS -digestalg SHA-256 -sigalg SHA256withRSA rishvya.aab "$KEY_ALIAS"
           rm -f release.jks aligned.apk
 
       - name: Keep AAB for Play Store (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: aavira-playstore-aab-${{ inputs.version }}
-          path: aavira.aab
+          name: rishvya-playstore-aab-${{ inputs.version }}
+          path: rishvya.aab
           retention-days: 30
 
       - name: Publish APK in GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          name: AAVIRA ${{ inputs.version }}
-          files: aavira.apk
+          name: RISHVYA ${{ inputs.version }}
+          files: rishvya.apk
