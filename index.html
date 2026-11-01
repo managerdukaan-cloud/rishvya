@@ -56,6 +56,33 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:20px}
 .bn .sl{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity .9s;display:flex;flex-direction:column;justify-content:flex-end;padding:24px;color:#fff;cursor:pointer}.bn .sl.on{opacity:1}.bn .sl::before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(30,10,18,.72),transparent 60%)}.bn .sl>*{position:relative;margin:0}.bn h2{font:600 clamp(22px,4vw,38px) Georgia,serif}
 .dots{position:absolute;right:18px;bottom:14px;display:flex;gap:6px;z-index:2}.dots i{width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.5);transition:all .4s var(--sp)}.dots i.on{width:22px;background:#fff}
 .fl{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:center;margin-bottom:10px}.fl a{color:var(--mute);cursor:pointer}.fl a:hover{color:var(--wine)}
+
+/* ===== responsive: phone / app / desktop ===== */
+html{-webkit-text-size-adjust:100%}body{overscroll-behavior-y:none}
+input,select,textarea{font-size:16px}
+header{flex-wrap:nowrap;padding-top:calc(10px + env(safe-area-inset-top,0px))}header .logo{min-width:0;white-space:nowrap}
+.grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.pc h3{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.act{flex-wrap:wrap}.act .btn{white-space:nowrap}.act .btn[style*="flex:1"]{flex:1 1 auto!important}.ic span{display:none}
+@media(max-width:600px){
+main{padding:10px 12px 40px}
+header{padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));gap:6px}header .logo{font-size:19px;letter-spacing:.14em}
+.ib{width:38px;height:38px;font-size:15px}.bg{min-width:17px;height:17px;font-size:10px;top:-3px;right:-3px}
+.hero{padding:24px 18px;border-radius:20px}.hero h1{font-size:26px}.hero p{font-size:13px;max-width:72%}.hero svg{width:62px;right:14px;bottom:14px}
+.bn{border-radius:20px;min-height:150px}.bn .sl{padding:16px}
+.chips{padding:12px 2px 6px;gap:8px}.chip{padding:7px 14px;font-size:13px}
+.bar{padding:6px 2px 12px;gap:8px}.bar select{max-width:118px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pc{padding:6px;border-radius:16px}.pc img{aspect-ratio:1/1.1;border-radius:12px}.pc .b{padding:8px 4px 2px}.pc h3{font-size:14px;line-height:1.25}.pc small{font-size:11px}.pr b{font-size:14px}.pr s,.pr i{font-size:11px}
+.hb{width:30px;height:30px;top:10px;right:10px;font-size:14px}.tag{top:10px;left:10px;font-size:10px}
+.sh{height:94vh;height:94dvh;max-height:none;border-radius:22px 22px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.mi{aspect-ratio:1/1;max-height:40vh}.pd h2{font-size:21px!important}.sh .row h2{font-size:20px!important}.nv{width:30px;height:30px;font-size:15px}.th{margin:8px 0}.th img{width:46px;height:56px}
+.act{position:sticky;bottom:-14px;z-index:4;background:var(--bg);padding:10px 0 6px;margin-top:10px;box-shadow:0 -12px 14px var(--bg)}
+.act .btn{padding:12px 10px;font-size:14px}
+.pm{flex-direction:column}
+.act{flex-wrap:nowrap}.act .btn[style*="flex:1"]{flex:1 1 0!important}
+}
+@media(max-width:360px){.pc h3{font-size:13px}.hero h1{font-size:23px}header .logo{font-size:17px}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -68,7 +95,7 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:20px}
 <section class="hero"><small>Wear Your Elegance</small><h1>Jewellery &amp; Ethnic Wear<br>for every celebration</h1><p>Antique sets, kundan, sarees and accessories – handpicked for you.</p><button class="btn" onclick="document.getElementById('grid').scrollIntoView({behavior:'smooth'})">Shop now</button>
 <svg viewBox="0 0 64 64"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3dcae"/><stop offset=".5" stop-color="#C6A46A"/><stop offset="1" stop-color="#8a4a62"/></linearGradient></defs><polygon points="16,8 48,8 62,26 32,58 2,26" fill="url(#gg)"/><polygon points="16,8 24,26 32,8 40,26 48,8" fill="rgba(255,255,255,.4)"/></svg></section>
 <div class="chips" id="chips"></div>
-<div class="bar"><input id="q" placeholder="Search necklace, saree, kundan…" oninput="grid()"><select id="so" onchange="grid()"><option value="">Sort</option><option value="n">Newest</option><option value="pl">Price: low to high</option><option value="ph">Price: high to low</option><option value="d">Highest discount</option></select></div>
+<div class="bar"><input id="q" placeholder="Search jewellery, saree…" oninput="grid()"><select id="so" onchange="grid()"><option value="">Sort</option><option value="n">Newest</option><option value="pl">Price: low to high</option><option value="ph">Price: high to low</option><option value="d">Highest discount</option></select></div>
 <div class="grid" id="grid"><div class="ld"><i></i><i></i><i></i></div></div></main>
 <footer><div class="fl"><a id="apkl" target="_blank" rel="noopener" style="display:none">📱 Get Android App</a><a onclick="page('about')">About AAVIRA</a><a onclick="page('contact')">Contact Us</a><a onclick="page('shipping')">Shipping Policy</a><a onclick="page('returns')">Return & Refund Policy</a><a onclick="page('privacy')">Privacy Policy</a><a onclick="page('terms')">Terms & Conditions</a><a onclick="page('faq')">FAQ</a></div>© AAVIRA · Wear Your Elegance · COD &amp; UPI available</footer>
 <div class="ov" id="ov"><div class="sh" id="sh"></div></div><div id="toast"></div>
@@ -105,7 +132,7 @@ show('<div class="row"><span class="logo" style="font-size:18px;flex:1">AAVIRA</
 '<div><h2 style="margin:0;font:600 26px Georgia,serif">'+esc(p.name)+'</h2><small style="color:var(--mute)">SKU '+esc(p.sku||"")+(p.material?' · '+esc(p.material):'')+'</small><div class="pr" style="font-size:20px;margin:8px 0"><b>'+inr(p.price)+'</b><s>'+inr(p.mrp)+'</s><i>'+(p.discountPct||0)+'% off</i></div>'+
 (cols.length?'<label>Colour</label><div class="opts">'+cols.map((c,i)=>'<button class="op'+(c===sel.c?" on":"")+'" onclick="sel.c=COLS['+i+'];pd()">'+esc(c)+'</button>').join("")+'</div>':'')+
 (szs.length>1||szs[0]!=="Free"?'<label>Size</label><div class="opts">'+szs.map((s,i)=>'<button class="op'+(s===sel.s?" on":"")+(stk(p,s,sel.c)<1?" x":"")+'" onclick="sel.s=SZ['+i+'];pd()">'+esc(s)+'</button>').join("")+'</div>':'')+
-'<div style="margin:8px 0">'+sc+'</div><p style="margin:0 0 14px">'+esc(p.description||"")+'</p><div class="row"><button class="btn o" onclick="tw(\''+p.id+'\')">'+(wish.includes(p.id)?"♥":"♡")+'</button><button class="btn o" onclick="shareSh()">⤴ Share</button><button class="btn" style="flex:1" '+(n<1?"disabled":"")+' onclick="add(0)">Add to Cart</button><button class="btn" style="flex:1" '+(n<1?"disabled":"")+' onclick="add(1)">Buy Now</button></div><div class="note">Delivery: ₹'+SHIP+' · FREE above '+inr(FREE)+' · COD &amp; UPI</div>'+revHtml(p)+'</div></div>');
+'<div style="margin:8px 0">'+sc+'</div><p style="margin:0 0 14px">'+esc(p.description||"")+'</p><div class="row act"><button class="btn o ic" onclick="tw(\''+p.id+'\')">'+(wish.includes(p.id)?"♥":"♡")+'</button><button class="btn o ic" onclick="shareSh()" title="Share">⤴<span> Share</span></button><button class="btn" style="flex:1" '+(n<1?"disabled":"")+' onclick="add(0)">Add to Cart</button><button class="btn" style="flex:1" '+(n<1?"disabled":"")+' onclick="add(1)">Buy Now</button></div><div class="note">Delivery: ₹'+SHIP+' · FREE above '+inr(FREE)+' · COD &amp; UPI</div>'+revHtml(p)+'</div></div>');
 window.SZ=szs;window.COLS=cols;const g=$("gw");let x0=0;g.ontouchstart=e=>x0=e.touches[0].clientX;g.ontouchend=e=>{const d=e.changedTouches[0].clientX-x0;if(Math.abs(d)>40)nav(d<0?1:-1)};$("mi").onclick=()=>{zoom=!zoom;$("mi").classList.toggle("z",zoom)}}
 function nav(d){const n=imgs(cur).length;vi=(vi+d+n)%n;zoom=false;pd()}
 function add(buy){const n=stk(cur,sel.s,sel.c),k=cur.id+"|"+sel.s+"|"+sel.c,e=cart.find(x=>x.k===k);if(n<1)return;
@@ -183,11 +210,12 @@ function npAsk(){if(!("Notification" in window)||Notification.permission!=="defa
 d.style.cssText="position:fixed;left:12px;right:12px;bottom:14px;z-index:70;max-width:420px;margin:auto;padding:14px;border-radius:18px;background:var(--bg);box-shadow:8px 8px 20px var(--lo),-8px -8px 20px var(--hi);animation:up .5s var(--ez) both";
 d.innerHTML='<b>🔔 Order updates chahiye?</b><div class="note" style="margin:4px 0 10px">Shipping aur tracking ki alerts ke liye notifications allow karo.</div><div class="row"><button class="btn s" id="npa">Allow</button><button class="btn s o" id="npl">Later</button></div>';document.body.appendChild(d);
 $("npa").onclick=async()=>{d.remove();try{await Notification.requestPermission()}catch(e){}};$("npl").onclick=()=>{d.remove();try{localStorage.setItem("av_np","1")}catch(e){}}}
-function shareSh(){const p=cur,u=location.origin+location.pathname+"#p-"+p.id,t=p.name+" – "+inr(p.price)+" at AAVIRA",e=encodeURIComponent;window.SU=u;
-const L=[["WhatsApp","https://wa.me/?text="+e(t+" "+u)],["Facebook","https://www.facebook.com/sharer/sharer.php?u="+e(u)],["Telegram","https://t.me/share/url?url="+e(u)+"&text="+e(t)],["X (Twitter)","https://twitter.com/intent/tweet?text="+e(t)+"&url="+e(u)],["Email","mailto:?subject="+e(p.name)+"&body="+e(t+"\n"+u)]];
-show('<div class="row"><h2 style="margin:0;flex:1;font:600 24px Georgia,serif">Share</h2><button class="ib" onclick="pd()">✕</button></div><div class="g2" style="margin-top:14px">'+L.map(x=>'<a class="btn o" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="'+x[1]+'">'+x[0]+'</a>').join("")+'<button class="btn o" onclick="cpL()">Copy link</button>'+(navigator.share?'<button class="btn" onclick="nsh()">More…</button>':'')+'</div><div class="note">Instagram ke liye "Copy link" ya "More…" use karo.</div>')}
-function cpL(){(navigator.clipboard?navigator.clipboard.writeText(SU):Promise.reject()).then(()=>toast("Link copy ho gaya")).catch(()=>prompt("Link copy karo:",SU))}
-function nsh(){navigator.share({title:cur.name,url:SU}).catch(()=>{})}
+function shareSh(){const p=cur,u=location.origin+location.pathname+"#p-"+p.id,e=encodeURIComponent,off=p.discountPct||(p.mrp>p.price?Math.round((1-p.price/p.mrp)*100):0),
+m3=p.mrp>p.price?"MRP "+inr(p.mrp)+" → "+inr(p.price)+" ("+off+"% OFF)":"Price "+inr(p.price),t=p.name+"\n"+u+"\n"+m3;window.SU=u;window.ST=t;
+const L=[["WhatsApp","https://wa.me/?text="+e(t)],["Facebook","https://www.facebook.com/sharer/sharer.php?u="+e(u)+"&quote="+e(p.name+"\n"+m3)],["Telegram","https://t.me/share/url?url="+e(u)+"&text="+e(p.name+"\n"+m3)],["X (Twitter)","https://twitter.com/intent/tweet?text="+e(p.name+"\n"+m3)+"&url="+e(u)],["Email","mailto:?subject="+e(p.name)+"&body="+e(t)]];
+show('<div class="row"><h2 style="margin:0;flex:1;font:600 24px Georgia,serif">Share</h2><button class="ib" onclick="pd()">✕</button></div><div class="note" style="white-space:pre-line;margin:10px 0">'+esc(t)+'</div><div class="g2" style="margin-top:6px">'+L.map(x=>'<a class="btn o" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="'+x[1]+'">'+x[0]+'</a>').join("")+'<button class="btn o" onclick="cpL()">Copy message</button>'+(navigator.share?'<button class="btn" onclick="nsh()">More…</button>':'')+'</div><div class="note">Instagram ke liye "Copy message" ya "More…" use karo.</div>')}
+function cpL(){(navigator.clipboard?navigator.clipboard.writeText(ST):Promise.reject()).then(()=>toast("Message copy ho gaya")).catch(()=>prompt("Copy karo:",ST))}
+function nsh(){navigator.share({title:cur.name,text:ST}).catch(()=>{})}
 function locate(){if(!navigator.geolocation)return toast("Is device mein location support nahi hai",1);toast("Location dhoondh rahe hain…");
 navigator.geolocation.getCurrentPosition(async p=>{LOC={lat:+p.coords.latitude.toFixed(5),lng:+p.coords.longitude.toFixed(5)};
 try{const r=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=en&lat="+LOC.lat+"&lon="+LOC.lng),j=await r.json(),a=j.address||{};
