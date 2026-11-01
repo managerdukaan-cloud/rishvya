@@ -66,6 +66,9 @@ jobs:
               "url": "${SITE_URL}?shell=apk&sv=${VERSION}",
               "androidScheme": "https",
               "allowNavigation": ["managerdukaan-cloud.github.io"]
+            },
+            "android": {
+              "adjustMarginsForEdgeToEdge": "force"
             }
           }
           EOF
@@ -80,25 +83,55 @@ jobs:
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n</manifest>#' app/src/main/AndroidManifest.xml
           sed -i 's/#FFFFFF/#581D32/' app/src/main/res/values/ic_launcher_background.xml || true
 
-      - name: Launcher icons (cosmetic, may be skipped)
-        continue-on-error: true
+      - name: AAVIRA app icon and splash screen
         run: |
           pip install pillow > /dev/null
+          test -f icons/logo.png || { echo "::error::icons/logo.png missing in repo (upload it to the icons folder)"; exit 1; }
           python3 - <<'PY'
+          import glob, os
           from PIL import Image
           res = "shell/android/app/src/main/res"
+          WINE = (88, 29, 50, 255)
+          logo = Image.open("icons/logo.png").convert("RGBA")
+
+          def on_wine(w, h, frac):
+              bg = Image.new("RGBA", (w, h), WINE)
+              s = int(min(w, h) * frac)
+              l = logo.resize((s, s), Image.LANCZOS)
+              bg.alpha_composite(l, ((w - s) // 2, (h - s) // 2))
+              return bg
+
           legacy = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
-          fg = {"mdpi": 108, "hdpi": 162, "xhdpi": 216, "xxhdpi": 324, "xxxhdpi": 432}
-          a = Image.open("icons/icon-512.png").convert("RGBA")
-          m = Image.open("icons/icon-maskable-512.png").convert("RGBA")
+          fore = {"mdpi": 108, "hdpi": 162, "xhdpi": 216, "xxhdpi": 324, "xxxhdpi": 432}
           for d, sz in legacy.items():
+              os.makedirs(f"{res}/mipmap-{d}", exist_ok=True)
               for n in ("ic_launcher.png", "ic_launcher_round.png"):
-                  a.resize((sz, sz), Image.LANCZOS).save(f"{res}/mipmap-{d}/{n}")
-          for d, sz in fg.items():
-              inner = int(sz * 0.66)
-              canvas = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
-              canvas.paste(m.resize((inner, inner), Image.LANCZOS), ((sz - inner) // 2, (sz - inner) // 2))
-              canvas.save(f"{res}/mipmap-{d}/ic_launcher_foreground.png")
+                  on_wine(sz, sz, 0.76).save(f"{res}/mipmap-{d}/{n}")
+          for d, sz in fore.items():
+              c = Image.new("RGBA", (sz, sz), (0, 0, 0, 0))
+              s = int(sz * 0.78)
+              c.alpha_composite(logo.resize((s, s), Image.LANCZOS), ((sz - s) // 2, (sz - s) // 2))
+              c.save(f"{res}/mipmap-{d}/ic_launcher_foreground.png")
+
+          xml = ('<?xml version="1.0" encoding="utf-8"?>\n'
+                 '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                 '    <background android:drawable="@color/ic_launcher_background"/>\n'
+                 '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
+                 '</adaptive-icon>\n')
+          os.makedirs(f"{res}/mipmap-anydpi-v26", exist_ok=True)
+          for n in ("ic_launcher.xml", "ic_launcher_round.xml"):
+              open(f"{res}/mipmap-anydpi-v26/{n}", "w").write(xml)
+          open(f"{res}/values/ic_launcher_background.xml", "w").write(
+              '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#581D32</color>\n</resources>\n')
+
+          n = 0
+          for f in glob.glob(f"{res}/drawable*/splash*.png"):
+              w, h = Image.open(f).size
+              on_wine(w, h, 0.36).convert("RGB").save(f)
+              n += 1
+          print("splash images replaced:", n)
+          if n == 0:
+              print("::warning::No splash images found to replace")
           PY
 
       - name: Build release APK and AAB
