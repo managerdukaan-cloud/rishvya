@@ -1,0 +1,37 @@
+{
+  "id": "./",
+  "name": "RISHVYA – Where Elegance Meets Identity",
+  "short_name": "RISHVYA",
+  "description": "Premium Indian jewellery, ethnic wear and accessories.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEE8DD",
+  "theme_color": "#581D32",
+  "lang": "en-IN",
+  "categories": [
+    "shopping",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
