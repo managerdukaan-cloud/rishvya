@@ -18,6 +18,10 @@ on:
         description: "Deploy Firestore rules + indexes"
         type: boolean
         default: true
+      deploy_functions:
+        description: "Deploy Cloud Functions (push alerts + invoice)"
+        type: boolean
+        default: false
       build_apk:
         description: "Build and publish a new Android APK"
         type: boolean
@@ -86,16 +90,24 @@ jobs:
             '{web:$web, latestApk:$la, minApk:$ma, apkUrl:$apk, notes:$notes, date:$date}' > _site/version.json
           cat _site/version.json
 
-      - name: Deploy Firebase (Firestore rules + indexes)
-        if: ${{ inputs.deploy_firebase }}
+      - name: Deploy Firebase (rules / functions)
+        if: ${{ inputs.deploy_firebase || inputs.deploy_functions }}
         env:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          DO_RULES: ${{ inputs.deploy_firebase }}
+          DO_FN: ${{ inputs.deploy_functions }}
         run: |
           [ -n "$SA_JSON" ] || { echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing. See RELEASE_SETUP.md step 4"; exit 1; }
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          ONLY=""
+          if [ "$DO_RULES" = "true" ]; then ONLY="firestore"; fi
+          if [ "$DO_FN" = "true" ]; then
+            ONLY="${ONLY:+$ONLY,}functions"
+            (cd functions && npm install --omit=dev --no-audit --no-fund)
+          fi
           npm i -g firebase-tools
-          firebase deploy --only firestore --project aavira-baa36 --non-interactive
+          firebase deploy --only "$ONLY" --project aavira-baa36 --non-interactive
           rm -f "$RUNNER_TEMP/sa.json"
 
       - name: Setup Pages
