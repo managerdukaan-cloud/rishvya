@@ -11,3 +11,12 @@ self.addEventListener("notificationclick", e => {
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(l => l.length ? l[0].focus() : self.clients.openWindow("./")));
 });
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) {}
+  const n = d.data || d.notification || d;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(cs => {
+    if (cs.some(c => c.focused)) return; // open page already shows its own in-app alert
+    return self.registration.showNotification(n.title || "RISHVYA", { body: n.body || "", icon: "icons/icon-192.png", badge: "icons/icon-192.png", data: { url: n.url || "./" } });
+  }));
+});
