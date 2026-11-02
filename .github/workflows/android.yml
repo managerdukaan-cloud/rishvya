@@ -32,6 +32,7 @@ jobs:
       KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
       KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +57,7 @@ jobs:
           mkdir shell && cd shell
           npm init -y > /dev/null
           npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          if [ -n "$GS_B64" ]; then npm i @capacitor/push-notifications@7; fi
           mkdir www
           echo '<!doctype html><title>RISHVYA</title><p>Loading...</p>' > www/index.html
           cat > capacitor.config.json <<EOF
@@ -74,6 +76,7 @@ jobs:
           }
           EOF
           npx cap add android
+          if [ -n "$GS_B64" ]; then echo "$GS_B64" | base64 -d > android/app/google-services.json; fi
 
       - name: Version, permissions, colours
         working-directory: shell/android
@@ -81,7 +84,7 @@ jobs:
           CODE=$(( $(date +%s) / 60 ))
           sed -i "s/versionCode 1/versionCode $CODE/; s/versionName \"1.0\"/versionName \"$VERSION\"/" app/build.gradle
           grep -q "versionCode $CODE" app/build.gradle || { echo "::error::Could not set versionCode in build.gradle"; exit 1; }
-          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n</manifest>#' app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' app/src/main/AndroidManifest.xml
           sed -i 's/#FFFFFF/#581D32/' app/src/main/res/values/ic_launcher_background.xml || true
 
       - name: RISHVYA app icon and splash screen
