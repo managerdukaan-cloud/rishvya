@@ -6,6 +6,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 const R = functions.region("asia-south1");
+const { buildOrder, restockPlan, OrderError } = require("./order");
+const FV = admin.firestore.FieldValue;
 
 const LABEL = {
   pending_payment: "Payment verification pending", placed: "Order placed", payment_confirmed: "Payment confirmed",
@@ -41,8 +43,25 @@ exports.onOrderCreate = R.firestore.document("orders/{id}").onCreate(async (snap
   if (o.customerId) await sendTo([await userDoc(o.customerId)], "Order received " + o.orderId, "Thank you! Hum aapka order jald confirm karenge.");
 });
 
+// give the stock of a cancelled / returned / refunded order back (flag makes it safe to run twice)
+async function restock(id) {
+  await db.runTransaction(async (t) => {
+    const oref = db.doc("orders/" + id), o = (await t.get(oref)).data();
+    if (!o || !o.stockDeducted || o.stockRestored) return;
+    const ids = [...new Set((o.items || []).map((x) => x.id))];
+    const snaps = await Promise.all(ids.map((i) => t.get(db.doc("products/" + i))));
+    const products = {};
+    snaps.forEach((s, i) => { if (s.exists) products[ids[i]] = s.data(); });
+    restockPlan(o, products).forEach((w) => t.update(db.doc("products/" + w.id), { variants: w.variants, stock: w.stock, updatedAt: FV.serverTimestamp() }));
+    t.update(oref, { stockRestored: true });
+  });
+}
+
 exports.onOrderUpdate = R.firestore.document("orders/{id}").onUpdate(async (ch) => {
   const a = ch.before.data(), b = ch.after.data();
+  if (["cancelled", "returned", "refunded"].includes(b.status) && b.status !== a.status) {
+    try { await restock(ch.after.id); } catch (e) { console.error("restock failed", e); }
+  }
   if (!b.customerId) return;
   let title, body;
   if (b.trackingNo && b.trackingNo !== a.trackingNo) { title = "Order " + b.orderId + " shipped"; body = "🚚 " + (b.courier || "Courier") + " · Tracking: " + b.trackingNo; }
@@ -100,4 +119,55 @@ exports.invoice = R.https.onRequest(async (req, res) => {
   } catch (e) {
     res.status(401).send("Invoice link expire ho gaya ya galat hai. App mein wapas jaake dobara try karo.");
   }
+});
+
+// Server-verified order creation: prices, stock, coupon and totals are all decided here, never by the browser.
+exports.placeOrder = R.https.onCall(async (data, ctx) => {
+  if (!ctx.auth) throw new functions.https.HttpsError("unauthenticated", "Pehle login karo");
+  const uid = ctx.auth.uid, email = ctx.auth.token.email || "";
+  data = data || {};
+  try {
+    return await db.runTransaction(async (t) => {
+      const ids = [...new Set((Array.isArray(data.items) ? data.items : []).slice(0, 30).map((i) => String((i && i.id) || "")).filter(Boolean))];
+      const code = String(data.couponCode || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15);
+      const reads = await Promise.all([t.get(db.doc("settings/shipping")), ...ids.map((id) => t.get(db.doc("products/" + id)))]);
+      const ship = reads[0].exists ? reads[0].data() : {};
+      const products = {};
+      ids.forEach((id, i) => { const s = reads[i + 1]; if (s.exists) products[id] = s.data(); });
+      let coupon = null, userUses = 0;
+      if (code) {
+        const cs = await t.get(db.doc("coupons/" + code));
+        coupon = cs.exists ? cs.data() : null;
+        const us = await t.get(db.doc("couponUses/" + code + "_" + uid));
+        userUses = us.exists ? Number(us.data().n) || 0 : 0;
+      }
+      const hasOrders = !(await t.get(db.collection("orders").where("customerId", "==", uid).limit(1))).empty;
+      const now = new Date();
+      const orderId = "RV" + now.getTime().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 4).toUpperCase();
+      const oref = db.doc("orders/" + orderId);
+      if ((await t.get(oref)).exists) throw new OrderError("aborted", "Dobara try karo");
+      const r = buildOrder({ data, uid, email, products, ship, coupon, couponCode: code, userUses, hasOrders, orderId, now });
+      r.stockWrites.forEach((w) => t.update(db.doc("products/" + w.id), { variants: w.variants, stock: w.stock, updatedAt: FV.serverTimestamp() }));
+      if (code) {
+        t.update(db.doc("coupons/" + code), { used: FV.increment(1) });
+        t.set(db.doc("couponUses/" + code + "_" + uid), { uid, code, n: FV.increment(1) }, { merge: true });
+      }
+      t.set(oref, { ...r.order, createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp() });
+      return { orderId, total: r.order.total, subtotal: r.order.subtotal, discount: r.order.discount, shipping: r.order.shipping, status: r.order.status };
+    });
+  } catch (e) {
+    if (e instanceof OrderError) throw new functions.https.HttpsError(e.code, e.message);
+    console.error("placeOrder failed", e);
+    throw new functions.https.HttpsError("internal", "Order abhi place nahi ho paaya. Thodi der baad try karo.");
+  }
+});
+
+// Daily 9 AM (IST): tell the admin which products are almost out of stock
+exports.lowStock = R.pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").onRun(async () => {
+  const snap = await db.collection("products").where("status", "==", "active").get();
+  const low = snap.docs.map((d) => d.data()).filter((p) => (Number(p.stock) || 0) <= 2);
+  if (!low.length) return null;
+  const names = low.slice(0, 4).map((p) => p.name + " (" + (p.stock || 0) + ")").join(", ");
+  await sendTo(await adminsDocs(), "Low stock: " + low.length + " products", names + (low.length > 4 ? " ..." : ""));
+  return null;
 });
