@@ -107,7 +107,7 @@ jobs:
             (cd functions && npm install --omit=dev --no-audit --no-fund)
           fi
           npm i -g firebase-tools
-          firebase deploy --only "$ONLY" --project aavira-baa36 --non-interactive
+          firebase deploy --only "$ONLY" --project aavira-baa36 --non-interactive --force
           rm -f "$RUNNER_TEMP/sa.json"
 
       - name: Setup Pages
