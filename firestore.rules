@@ -6,6 +6,8 @@ service cloud.firestore {
     function isAdmin() { return signedIn() && role() == 'admin'; }
     function isSeller() { return signedIn() && role() == 'seller'; }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    // when ON (Admin > Settings > Secure orders) customers can no longer write orders directly; only the placeOrder function can
+    function serverOrdersOn() { return exists(/databases/$(database)/documents/settings/security) && get(/databases/$(database)/documents/settings/security).data.serverOrders == true; }
 
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
@@ -37,11 +39,12 @@ service cloud.firestore {
     match /orders/{id} {
       allow read: if isAdmin() || (signedIn() && resource.data.customerId == request.auth.uid);
       allow create: if signedIn() && request.resource.data.customerId == request.auth.uid
-                    && request.resource.data.status in ['pending_payment', 'placed'];
+                    && request.resource.data.status in ['pending_payment', 'placed'] && !serverOrdersOn();
       allow update: if isAdmin()
                     || (signedIn() && resource.data.customerId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','cancelReason','updatedAt'])
-                        && request.resource.data.status in ['cancelled', 'return_requested']);
+                        && ((request.resource.data.status == 'cancelled' && resource.data.status in ['pending_payment', 'placed'])
+                            || (request.resource.data.status == 'return_requested' && resource.data.status == 'delivered')));
       allow delete: if isAdmin();
     }
 
