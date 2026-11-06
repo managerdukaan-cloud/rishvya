@@ -7,6 +7,7 @@ admin.initializeApp();
 const db = admin.firestore();
 const R = functions.region("asia-south1");
 const { buildOrder, restockPlan, OrderError } = require("./order");
+const mail = require("./mail");
 const FV = admin.firestore.FieldValue;
 
 const LABEL = {
@@ -41,6 +42,8 @@ exports.onOrderCreate = R.firestore.document("orders/{id}").onCreate(async (snap
   const o = snap.data();
   await sendTo(await adminsDocs(), "New order " + o.orderId, "₹" + o.total + " · " + (o.customerName || "") + " · " + String(o.paymentMethod || "").toUpperCase());
   if (o.customerId) await sendTo([await userDoc(o.customerId)], "Order received " + o.orderId, "Thank you! Hum aapka order jald confirm karenge.");
+  await mail.sendMail(o.customerEmail, "Order received " + o.orderId, mail.tpl("Thank you for your order!", "<p>Hi " + mail.esc(o.customerName) + ", we have received your order <b>" + mail.esc(o.orderId) + "</b>. We will confirm it shortly.</p>" + mail.orderRows(o)));
+  if (process.env.MAIL_ADMIN) await mail.sendMail(process.env.MAIL_ADMIN, "New order " + o.orderId, mail.tpl("New order", "<p>" + mail.esc(o.customerName) + " · ₹" + o.total + " · " + mail.esc(String(o.paymentMethod || "").toUpperCase()) + "</p>" + mail.orderRows(o)));
 });
 
 // give the stock of a cancelled / returned / refunded order back (flag makes it safe to run twice)
@@ -68,13 +71,18 @@ exports.onOrderUpdate = R.firestore.document("orders/{id}").onUpdate(async (ch) 
   else if (b.status !== a.status) { title = "Order " + b.orderId; body = LABEL[b.status] || b.status; }
   else return;
   await sendTo([await userDoc(b.customerId)], title, body);
+  await mail.sendMail(b.customerEmail, title, mail.tpl(title, "<p>" + mail.esc(body) + "</p>" + mail.orderRows(b)));
 });
 
 exports.onReturnWrite = R.firestore.document("returns/{id}").onWrite(async (ch) => {
   const after = ch.after.exists ? ch.after.data() : null;
   if (!after) return;
   if (!ch.before.exists) { await sendTo(await adminsDocs(), "Return request " + after.orderId, (after.customerName || "") + " · " + (after.reason || "")); return; }
-  if (ch.before.data().status !== after.status && after.customerId) await sendTo([await userDoc(after.customerId)], "Return " + after.orderId, RLABEL[after.status] || after.status);
+  if (ch.before.data().status !== after.status && after.customerId) {
+    const ud = await userDoc(after.customerId), msg = RLABEL[after.status] || after.status;
+    await sendTo([ud], "Return " + after.orderId, msg);
+    await mail.sendMail(ud.exists ? ud.data().email : "", "Return " + after.orderId, mail.tpl("Return update", "<p>" + mail.esc(msg) + (after.adminNote ? "<br>" + mail.esc(after.adminNote) : "") + (after.refundRef ? "<br>Refund ref: " + mail.esc(after.refundRef) : "") + "</p>"));
+  }
 });
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -134,6 +142,13 @@ exports.placeOrder = R.https.onCall(async (data, ctx) => {
       const ship = reads[0].exists ? reads[0].data() : {};
       const products = {};
       ids.forEach((id, i) => { const s = reads[i + 1]; if (s.exists) products[id] = s.data(); });
+      const uSnap = await t.get(db.doc("users/" + uid));
+      if (uSnap.exists && uSnap.data().disabled) throw new OrderError("permission-denied", "Aapka account abhi band hai. Support se sampark karo.");
+      const cref = String(data.clientRef || "").trim().slice(0, 40);
+      if (cref) {
+        const dup = await t.get(db.collection("orders").where("customerId", "==", uid).where("clientRef", "==", cref).limit(1));
+        if (!dup.empty) { const d = dup.docs[0].data(); return { orderId: d.orderId, total: d.total, subtotal: d.subtotal, discount: d.discount, shipping: d.shipping, status: d.status, duplicate: true }; }
+      }
       let coupon = null, userUses = 0;
       if (code) {
         const cs = await t.get(db.doc("coupons/" + code));
@@ -146,8 +161,8 @@ exports.placeOrder = R.https.onCall(async (data, ctx) => {
       const orderId = "RV" + now.getTime().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 4).toUpperCase();
       const oref = db.doc("orders/" + orderId);
       if ((await t.get(oref)).exists) throw new OrderError("aborted", "Dobara try karo");
-      const r = buildOrder({ data, uid, email, products, ship, coupon, couponCode: code, userUses, hasOrders, orderId, now });
-      r.stockWrites.forEach((w) => t.update(db.doc("products/" + w.id), { variants: w.variants, stock: w.stock, updatedAt: FV.serverTimestamp() }));
+      const r = buildOrder({ data, uid, email, products, ship, coupon, couponCode: code, userUses, hasOrders, orderId, now, clientRef: cref });
+      r.stockWrites.forEach((w) => t.update(db.doc("products/" + w.id), { variants: w.variants, stock: w.stock, sold: FV.increment(w.sold || 0), updatedAt: FV.serverTimestamp() }));
       if (code) {
         t.update(db.doc("coupons/" + code), { used: FV.increment(1) });
         t.set(db.doc("couponUses/" + code + "_" + uid), { uid, code, n: FV.increment(1) }, { merge: true });
@@ -169,5 +184,12 @@ exports.lowStock = R.pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").onRun
   if (!low.length) return null;
   const names = low.slice(0, 4).map((p) => p.name + " (" + (p.stock || 0) + ")").join(", ");
   await sendTo(await adminsDocs(), "Low stock: " + low.length + " products", names + (low.length > 4 ? " ..." : ""));
+  return null;
+});
+
+// Welcome e-mail when a new customer registers (auth triggers run in us-central1)
+exports.welcome = functions.auth.user().onCreate(async (user) => {
+  if (!user.email) return null;
+  await mail.sendMail(user.email, "Welcome to RISHVYA", mail.tpl("Welcome!", "<p>Thank you for joining RISHVYA. Explore antique jewellery, ethnic wear and accessories picked for every celebration.</p>"));
   return null;
 });
