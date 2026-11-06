@@ -96,6 +96,12 @@ jobs:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           DO_RULES: ${{ inputs.deploy_firebase }}
           DO_FN: ${{ inputs.deploy_functions }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_ADMIN: ${{ secrets.MAIL_ADMIN }}
         run: |
           [ -n "$SA_JSON" ] || { echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing. See RELEASE_SETUP.md step 4"; exit 1; }
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
@@ -105,6 +111,14 @@ jobs:
           if [ "$DO_FN" = "true" ]; then
             ONLY="${ONLY:+$ONLY,}functions"
             (cd functions && npm install --omit=dev --no-audit --no-fund)
+            : > functions/.env
+            for v in SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS MAIL_FROM MAIL_ADMIN; do
+              val="${!v}"
+              if [ -n "$val" ]; then
+                val="${val//\\/\\\\}"; val="${val//\"/\\\"}"
+                printf '%s="%s"\n' "$v" "$val" >> functions/.env
+              fi
+            done
           fi
           npm i -g firebase-tools
           firebase deploy --only "$ONLY" --project aavira-baa36 --non-interactive --force
