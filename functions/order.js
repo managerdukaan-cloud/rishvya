@@ -4,7 +4,8 @@ const E = (c, m) => new OrderError(c, m);
 const str = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
 const prefixes = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
 
-function applyCoupon(c, sub, userUses, hasOrders, now) {
+const csv = (v) => String(v || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+function applyCoupon(c, lines, sub, userUses, hasOrders, now, email) {
   if (!c) throw E("not-found", "Coupon galat hai");
   if (!c.active) throw E("failed-precondition", "Coupon active nahi hai");
   if (c.expiry && new Date(c.expiry + "T23:59:59+05:30") < now) throw E("failed-precondition", "Coupon expire ho gaya");
@@ -12,13 +13,20 @@ function applyCoupon(c, sub, userUses, hasOrders, now) {
   if (c.maxUses > 0 && (c.used || 0) >= c.maxUses) throw E("failed-precondition", "Is coupon ki limit khatam ho gayi");
   if (c.perUser > 0 && userUses >= c.perUser) throw E("failed-precondition", "Aap ye coupon pehle hi use kar chuke ho");
   if (c.firstOrder && hasOrders) throw E("failed-precondition", "Ye coupon sirf pehle order ke liye hai");
-  let dc = c.type === "percent" ? Math.floor((sub * c.value) / 100) : Number(c.value) || 0;
+  const emails = csv(c.emails), cats = csv(c.categories), skus = csv(c.skus);
+  if (emails.length && !emails.includes(String(email || "").toLowerCase())) throw E("failed-precondition", "Ye coupon aapke account ke liye nahi hai");
+  let base = sub;
+  if (cats.length || skus.length) {
+    base = lines.filter((l) => cats.includes(String(l.category || "").toLowerCase()) || skus.includes(String(l.sku || "").toLowerCase())).reduce((t, l) => t + l.price * l.qty, 0);
+    if (base <= 0) throw E("failed-precondition", "Ye coupon aapke cart ke products par nahi chalta");
+  }
+  let dc = c.type === "percent" ? Math.floor((base * c.value) / 100) : Number(c.value) || 0;
   if (c.type === "percent" && c.maxDiscount > 0) dc = Math.min(dc, c.maxDiscount);
-  return { dc: Math.max(0, Math.min(dc, sub)), freeShip: !!c.freeShip };
+  return { dc: Math.max(0, Math.min(dc, base)), freeShip: !!c.freeShip };
 }
 
 // products: {id -> product data}; returns {order, stockWrites, couponCode}
-function buildOrder({ data, uid, email, products, ship, coupon, couponCode, userUses, hasOrders, orderId, now }) {
+function buildOrder({ data, uid, email, products, ship, coupon, couponCode, userUses, hasOrders, orderId, now, clientRef }) {
   const items = Array.isArray(data.items) ? data.items : [];
   if (!items.length || items.length > 30) throw E("invalid-argument", "Cart khali ya bahut bada hai");
   const a = data.address || {};
@@ -38,16 +46,17 @@ function buildOrder({ data, uid, email, products, ship, coupon, couponCode, user
     if (!id || !(qty >= 1 && qty <= 10)) throw E("invalid-argument", "Quantity 1 se 10 ke beech honi chahiye");
     const p = products[id];
     if (!p || p.status !== "active") throw E("failed-precondition", "Ek product ab available nahi hai");
-    const bp = byProd[id] || (byProd[id] = { variants: (p.variants || []).map((v) => ({ ...v })) });
+    const bp = byProd[id] || (byProd[id] = { variants: (p.variants || []).map((v) => ({ ...v })), sold: 0 });
     const v = bp.variants.find((x) => String(x.size) === size && String(x.color || "") === color);
     if (!v) throw E("failed-precondition", p.name + ": ye size/colour ab available nahi hai");
     if ((Number(v.stock) || 0) < qty) throw E("failed-precondition", "Stock kam hai: " + p.name + " (" + size + " " + color + ")");
     v.stock = Number(v.stock) - qty;
-    lines.push({ id, name: p.name, sku: p.sku || "", image: (p.images && p.images[0] && p.images[0].url) || p.image || "", size, color, price: Number(p.price), gstPct: Number(p.gstPct) || 0, qty });
+    bp.sold += qty;
+    lines.push({ id, name: p.name, sku: p.sku || "", image: (p.images && p.images[0] && p.images[0].url) || p.image || "", size, color, price: Number(p.price), gstPct: Number(p.gstPct) || 0, category: p.category || "", returnable: p.returnEligible !== false, qty });
   }
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   let dc = 0, freeShip = false, code = "";
-  if (couponCode) { const r = applyCoupon(coupon, subtotal, userUses, hasOrders, now); dc = r.dc; freeShip = r.freeShip; code = couponCode; }
+  if (couponCode) { const r = applyCoupon(coupon, lines, subtotal, userUses, hasOrders, now, email); dc = r.dc; freeShip = r.freeShip; code = couponCode; }
   const charge = typeof ship.charge === "number" ? ship.charge : 49, freeAbove = Number(ship.freeAbove) > 0 ? Number(ship.freeAbove) : 999;
   const shipping = subtotal > 0 && subtotal < freeAbove && !freeShip ? charge : 0;
   const total = subtotal - dc + shipping;
@@ -55,9 +64,9 @@ function buildOrder({ data, uid, email, products, ship, coupon, couponCode, user
   const order = {
     orderId, customerId: uid, customerName: name, customerEmail: email || "", customerPhone: phone,
     address: { name, phone, pincode: pin, address: addr, city }, paymentMethod: pm, utrNumber: utr, items: lines, location: loc,
-    subtotal, shipping, discount: dc, couponCode: code, total, status: pm === "upi" ? "pending_payment" : "placed", stockDeducted: true,
+    subtotal, shipping, discount: dc, couponCode: code, total, status: pm === "upi" ? "pending_payment" : "placed", stockDeducted: true, clientRef: str(clientRef, 40),
   };
-  const stockWrites = Object.keys(byProd).map((id) => ({ id, variants: byProd[id].variants, stock: byProd[id].variants.reduce((s, v) => s + (Number(v.stock) || 0), 0) }));
+  const stockWrites = Object.keys(byProd).map((id) => ({ id, variants: byProd[id].variants, stock: byProd[id].variants.reduce((s, v) => s + (Number(v.stock) || 0), 0), sold: byProd[id].sold }));
   return { order, stockWrites, couponCode: code };
 }
 
