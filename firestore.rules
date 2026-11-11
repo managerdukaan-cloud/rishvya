@@ -66,6 +66,20 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // "notify me when back in stock": one doc per customer + product
+    match /stockAlerts/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+                    && id == request.auth.uid + '_' + request.resource.data.productId;
+      allow read, delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // app error log written by the storefront, readable only by admin
+    match /clientErrors/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['msg', 'src', 'ua', 'app', 'ver', 'url', 'at'])
+                    && request.resource.data.msg is string && request.resource.data.msg.size() <= 300;
+      allow read, delete: if isAdmin();
+    }
+
     match /reviews/{id} {
       function okReview() {
         return request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
