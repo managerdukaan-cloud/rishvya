@@ -8,6 +8,7 @@ const db = admin.firestore();
 const R = functions.region("asia-south1");
 const { buildOrder, restockPlan, OrderError } = require("./order");
 const mail = require("./mail");
+const { priceDrop, backInStock, cartNudgeDue, tsJson } = require("./alerts");
 const FV = admin.firestore.FieldValue;
 
 const LABEL = {
@@ -68,7 +69,7 @@ exports.onOrderUpdate = R.firestore.document("orders/{id}").onUpdate(async (ch) 
   if (!b.customerId) return;
   let title, body;
   if (b.trackingNo && b.trackingNo !== a.trackingNo) { title = "Order " + b.orderId + " shipped"; body = "🚚 " + (b.courier || "Courier") + " · Tracking: " + b.trackingNo; }
-  else if (b.status !== a.status) { title = "Order " + b.orderId; body = LABEL[b.status] || b.status; }
+  else if (b.status !== a.status) { title = "Order " + b.orderId; body = b.status === "delivered" ? "Delivered ✔ Product kaisa laga? Review likhkar batao." : (LABEL[b.status] || b.status); }
   else return;
   await sendTo([await userDoc(b.customerId)], title, body);
   await mail.sendMail(b.customerEmail, title, mail.tpl(title, "<p>" + mail.esc(body) + "</p>" + mail.orderRows(b)));
@@ -180,7 +181,9 @@ exports.placeOrder = R.https.onCall(async (data, ctx) => {
 // Daily 9 AM (IST): tell the admin which products are almost out of stock
 exports.lowStock = R.pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").onRun(async () => {
   const snap = await db.collection("products").where("status", "==", "active").get();
-  const low = snap.docs.map((d) => d.data()).filter((p) => (Number(p.stock) || 0) <= 2);
+  const site = (await db.doc("settings/site").get()).data() || {};
+  const th = Number(site.lowStock) >= 0 && site.lowStock !== "" && site.lowStock != null ? Number(site.lowStock) : 2;
+  const low = snap.docs.map((d) => d.data()).filter((p) => (Number(p.stock) || 0) <= th);
   if (!low.length) return null;
   const names = low.slice(0, 4).map((p) => p.name + " (" + (p.stock || 0) + ")").join(", ");
   await sendTo(await adminsDocs(), "Low stock: " + low.length + " products", names + (low.length > 4 ? " ..." : ""));
@@ -191,5 +194,64 @@ exports.lowStock = R.pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").onRun
 exports.welcome = functions.auth.user().onCreate(async (user) => {
   if (!user.email) return null;
   await mail.sendMail(user.email, "Welcome to RISHVYA", mail.tpl("Welcome!", "<p>Thank you for joining RISHVYA. Explore antique jewellery, ethnic wear and accessories picked for every celebration.</p>"));
+  return null;
+});
+
+// Wishlist price-drop alert + back-in-stock alert
+exports.onProductUpdate = R.firestore.document("products/{id}").onUpdate(async (ch) => {
+  const a = ch.before.data(), b = ch.after.data(), id = ch.after.id;
+  if (priceDrop(a, b)) {
+    const us = await db.collection("users").where("wishlist", "array-contains", id).limit(200).get();
+    if (!us.empty) {
+      const t = "Price drop!", body = b.name + " ab ₹" + b.price + " (pehle ₹" + a.price + ")";
+      await sendTo(us.docs, t, body);
+      await Promise.all(us.docs.map((d) => mail.sendMail(d.data().email, t, mail.tpl(t, "<p>" + mail.esc(body) + "</p>"))));
+    }
+  }
+  if (backInStock(a, b)) {
+    const al = await db.collection("stockAlerts").where("productId", "==", id).limit(200).get();
+    if (!al.empty) {
+      const us = await Promise.all(al.docs.map((d) => userDoc(d.data().uid)));
+      const t = "Back in stock!", body = b.name + " wapas available hai";
+      await sendTo(us, t, body);
+      await Promise.all(us.map((u) => mail.sendMail(u.exists ? u.data().email : "", t, mail.tpl(t, "<p>" + mail.esc(body) + "</p>"))));
+      await Promise.all(al.docs.map((d) => d.ref.delete()));
+    }
+  }
+});
+
+// Daily 6 PM (IST): remind customers who left items in the cart 1-3 days ago
+exports.abandonedCart = R.pubsub.schedule("0 18 * * *").timeZone("Asia/Kolkata").onRun(async () => {
+  const now = Date.now();
+  const us = await db.collection("users").where("cartAt", "<", now - 864e5).where("cartAt", ">", now - 3 * 864e5).limit(200).get();
+  for (const d of us.docs) {
+    const u = d.data();
+    let last = 0;
+    (await db.collection("orders").where("customerId", "==", d.id).get()).docs.forEach((o) => { const c = o.data().createdAt; if (c && c.toMillis) last = Math.max(last, c.toMillis()); });
+    if (!cartNudgeDue(u, now, last)) continue;
+    let name = "";
+    const first = (u.cart[0] || {}).id;
+    if (first) { const p = await db.doc("products/" + first).get(); name = p.exists ? p.data().name : ""; }
+    const t = "Aapka cart aapka intezaar kar raha hai", body = (name ? name + " aur " : "") + "aapke chune hue items abhi available hain.";
+    await sendTo([d], t, body);
+    await mail.sendMail(u.email, t, mail.tpl(t, "<p>" + mail.esc(body) + "</p>"));
+    await d.ref.update({ cartNudged: u.cartAt });
+  }
+  return null;
+});
+
+// Every Sunday 3 AM (IST): save a JSON backup into Storage (backups/), keep the latest 8
+exports.weeklyBackup = R.pubsub.schedule("0 3 * * 0").timeZone("Asia/Kolkata").onRun(async () => {
+  try {
+    const out = { at: new Date().toISOString() };
+    for (const c of ["products", "orders", "returns", "coupons", "reviews", "banners", "settings", "users", "stockAlerts"]) {
+      const s = await db.collection(c).get();
+      out[c] = s.docs.map((d) => { const x = { id: d.id, ...d.data() }; if (c === "users") { delete x.fcmWeb; delete x.fcmApp; } return x; });
+    }
+    const bucket = admin.storage().bucket();
+    await bucket.file("backups/" + new Date().toISOString().slice(0, 10) + ".json").save(JSON.stringify(out, tsJson), { contentType: "application/json" });
+    const [files] = await bucket.getFiles({ prefix: "backups/" });
+    await Promise.all(files.sort((x, y) => (x.name < y.name ? 1 : -1)).slice(8).map((f) => f.delete().catch(() => {})));
+  } catch (e) { console.error("backup failed (is Storage enabled in Firebase console?)", e.message); }
   return null;
 });
